@@ -82,15 +82,8 @@ def shutdown():
 
 # ----------------------------------------------------------------------------
 
-_log_level = "error"
 _socket_port = 55009
 _socket_host = 'localhost'
-_device = 'auto'
-_pidfile = '/tmp/demond.pid'
-_apikey = ''
-_callback = ''
-_cycle = 0.3
-
 parser = argparse.ArgumentParser(
     description='Desmond Daemon for Jeedom plugin')
 parser.add_argument("--device", help="Device", type=str)
@@ -102,22 +95,16 @@ parser.add_argument("--pid", help="Pid file", type=str)
 parser.add_argument("--socketport", help="Port for Zigbee server", type=str)
 args = parser.parse_args()
 
-if args.device:
-	_device = args.device
-if args.loglevel:
-    _log_level = args.loglevel
-if args.callback:
-    _callback = args.callback
-if args.apikey:
-    _apikey = args.apikey
-if args.pid:
-    _pidfile = args.pid
-if args.cycle:
-    _cycle = float(args.cycle)
+_device = args.device if args.device else 'auto'
+_log_level = args.loglevel if args.loglevel else "error"
+_callback = args.callback if args.callback else ''
+_apikey = args.apikey if args.apikey else ''
+_pidfile = args.pid if args.pid else '/tmp/demond.pid'
+_cycle = float(args.cycle) if args.cycle else 0.3
 if args.socketport:
 	_socketport = args.socketport
 
-_socket_port = int(_socket_port)
+_socket_port = _socket_port
 
 jeedom_utils.set_log_level(_log_level)
 
