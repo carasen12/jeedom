@@ -48,74 +48,81 @@ class jeedom_com():
 		logging.info('Init request module v%s', requests.__version__)
 
 	def send_changes_async(self):
-		try:
-			if len(self.changes) == 0:
-				resend_changes = threading.Timer(self.cycle, self.send_changes_async)
-				resend_changes.start()
-				return
-			start_time = datetime.datetime.now()
-			changes = self.changes
-			self.changes = {}
-			logging.info('Send to jeedom: %s', changes)
-			i=0
-			while i < self.retry:
-				try:
-					r = requests.post(self.url + '?apikey=' + self.apikey, json=changes, timeout=(0.5, 120), verify=False)
-					if r.status_code == requests.codes.ok:
-						break
-				except Exception as error:
-					logging.error('Error on send request to jeedom %s retry : %i/%i', error, i, self.retry)
-				i = i + 1
-			if r.status_code != requests.codes.ok:
-				logging.error('Error on send request to jeedom, return code %i', r.status_code)
-			dt = datetime.datetime.now() - start_time
-			ms = (dt.days * 24 * 60 * 60 + dt.seconds) * 1000 + dt.microseconds / 1000.0
-			timer_duration = self.cycle - ms
-			if timer_duration < 0.1 :
-				timer_duration = 0.1
-			if timer_duration > self.cycle:
-				timer_duration = self.cycle
-			resend_changes = threading.Timer(timer_duration, self.send_changes_async)
-			resend_changes.start()
-		except Exception as error:
-			logging.error('Critical error on  send_changes_async %s', error)
-			resend_changes = threading.Timer(self.cycle, self.send_changes_async)
-			resend_changes.start()
+	    try:
+	        if len(self.changes) == 0:
+	        	resend_changes = threading.Timer(self.cycle, self.send_changes_async)
+	        	resend_changes.start()
+	        	return
+	        start_time = datetime.datetime.now()
+	        changes = self.changes
+	        self.changes = {}
+	        logging.info('Send to jeedom: %s', changes)
+	        i=0
+	        while i < self.retry:
+	            try:
+	                r = requests.post(
+	                    f'{self.url}?apikey={self.apikey}',
+	                    json=changes,
+	                    timeout=(0.5, 120),
+	                    verify=False,
+	                )
+	                if r.status_code == requests.codes.ok:
+	                	break
+	            except Exception as error:
+	            	logging.error('Error on send request to jeedom %s retry : %i/%i', error, i, self.retry)
+	            i += 1
+	        if r.status_code != requests.codes.ok:
+	        	logging.error('Error on send request to jeedom, return code %i', r.status_code)
+	        dt = datetime.datetime.now() - start_time
+	        ms = (dt.days * 24 * 60 * 60 + dt.seconds) * 1000 + dt.microseconds / 1000.0
+	        timer_duration = self.cycle - ms
+	        timer_duration = max(timer_duration, 0.1)
+	        timer_duration = min(timer_duration, self.cycle)
+	        resend_changes = threading.Timer(timer_duration, self.send_changes_async)
+	        resend_changes.start()
+	    except Exception as error:
+	    	logging.error('Critical error on  send_changes_async %s', error)
+	    	resend_changes = threading.Timer(self.cycle, self.send_changes_async)
+	    	resend_changes.start()
 
 	def add_changes(self,key,value):
-		if key.find('::') != -1:
-			tmp_changes = {}
-			changes = value
-			for k in reversed(key.split('::')):
-				if k not in tmp_changes:
-					tmp_changes[k] = {}
-				tmp_changes[k] = changes
-				changes = tmp_changes
-				tmp_changes = {}
-			if self.cycle <= 0:
-				self.send_change_immediate(changes)
-			else:
-				self.merge_dict(self.changes,changes)
-		else:
-			if self.cycle <= 0:
-				self.send_change_immediate({key:value})
-			else:
-				self.changes[key] = value
+	    if key.find('::') != -1:
+	        tmp_changes = {}
+	        changes = value
+	        for k in reversed(key.split('::')):
+	        	if k not in tmp_changes:
+	        		tmp_changes[k] = {}
+	        	tmp_changes[k] = changes
+	        	changes = tmp_changes
+	        	tmp_changes = {}
+	        if self.cycle <= 0:
+	        	self.send_change_immediate(changes)
+	        else:
+	        	self.merge_dict(self.changes,changes)
+	    elif self.cycle <= 0:
+	        self.send_change_immediate({key:value})
+	    else:
+	        self.changes[key] = value
 
 	def send_change_immediate(self,change):
 		threading.Thread( target=self.thread_change,args=(change,)).start()
 
 	def thread_change(self,change):
-		logging.info('Send to jeedom : %s', change)
-		i=0
-		while i < self.retry:
-			try:
-				r = requests.post(self.url + '?apikey=' + self.apikey, json=change, timeout=(0.5, 120), verify=False)
-				if r.status_code == requests.codes.ok:
-					break
-			except Exception as error:
-				logging.error('Error on send request to jeedom %s retry : %i/%i', error, i, self.retry)
-			i = i + 1
+	    logging.info('Send to jeedom : %s', change)
+	    i=0
+	    while i < self.retry:
+	        try:
+	            r = requests.post(
+	                f'{self.url}?apikey={self.apikey}',
+	                json=change,
+	                timeout=(0.5, 120),
+	                verify=False,
+	            )
+	            if r.status_code == requests.codes.ok:
+	            	break
+	        except Exception as error:
+	        	logging.error('Error on send request to jeedom %s retry : %i/%i', error, i, self.retry)
+	        i += 1
 
 	def set_change(self,changes):
 		self.changes = changes
@@ -132,15 +139,15 @@ class jeedom_com():
 				d1[k] = v2
 
 	def test(self):
-		try:
-			response = requests.get(self.url + '?apikey=' + self.apikey, verify=False)
-			if response.status_code != requests.codes.ok:
-				logging.error('Callback error: %s %s. Please check your network configuration page', response.status.code, response.status.message)
-				return False
-		except Exception as e:
-			logging.error('Callback result as a unknown error: %s. Please check your network configuration page', e.message)
-			return False
-		return True
+	    try:
+	        response = requests.get(f'{self.url}?apikey={self.apikey}', verify=False)
+	        if response.status_code != requests.codes.ok:
+	        	logging.error('Callback error: %s %s. Please check your network configuration page', response.status.code, response.status.message)
+	        	return False
+	    except Exception as e:
+	    	logging.error('Callback result as a unknown error: %s. Please check your network configuration page', e.message)
+	    	return False
+	    return True
 
 # ------------------------------------------------------------------------------
 
@@ -192,9 +199,7 @@ class jeedom_utils():
 
 	@staticmethod
 	def dec2hex(dec):
-		if dec is None:
-			return '0x00'
-		return "0x{:02X}".format(dec)
+	    return '0x00' if dec is None else "0x{:02X}".format(dec)
 
 	@staticmethod
 	def testBit(int_type, offset):
@@ -287,21 +292,19 @@ class jeedom_serial():
 		self.port.flushInput()
 
 	def read(self):
-		if self.port.inWaiting() != 0:
-			return self.port.read()
-		return None
+	    return self.port.read() if self.port.inWaiting() != 0 else None
 
 	def readbytes(self,number):
-		buf = b''
-		for i in range(number):
-			try:
-				byte = self.port.read()
-			except IOError as e:
-				logging.error("Error: %s", e)
-			except OSError as e:
-				logging.error("Error: %s", e)
-			buf += byte
-		return buf
+	    buf = b''
+	    for _ in range(number):
+	        try:
+	        	byte = self.port.read()
+	        except IOError as e:
+	        	logging.error("Error: %s", e)
+	        except OSError as e:
+	        	logging.error("Error: %s", e)
+	        buf += byte
+	    return buf
 
 # ------------------------------------------------------------------------------
 
